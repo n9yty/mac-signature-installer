@@ -216,11 +216,13 @@ if [ ${MAIL_IS_RUNNING} -eq 1 ]; then
 	done
 fi
 
+chflags nouchg "${SYSTEM_SIG_FILE}"
 cat > "${SYSTEM_SIG_FILE}" <<< "${RAW_SIGNATURE}"
 if [ $? -ne 0 ]; then
 	echo -e "${TAG_ERROR} I was unable to install the signature file. Please make sure signature files are not locked. If you contact support, please quote error number 8."
 	exit 8
 fi
+chflags uchg "${SYSTEM_SIG_FILE}"
 
 CLOUD_V="5"
 CLOUD_DIR="${HOME}/Library/Mobile Documents/com~apple~mail/Data/V${CLOUD_V}/Signatures"
@@ -243,7 +245,9 @@ fi
 if [ ! -z "${CLOUD_DIR}" ]; then
 	CLOUD_SIG_FILE="${CLOUD_DIR}/${SIG_ID}.mailsignature"
 	if [ -f "${CLOUD_SIG_FILE}" ]; then
+                chflags uchg "${CLOUD_SIG_FILE}"
 		cat > "${CLOUD_SIG_FILE}" <<< "${RAW_SIGNATURE}"
+                chflags uchg "${CLOUD_SIG_FILE}"
 		if [ $? -ne 0 ]; then
 			echo -e "${TAG_ERROR} I was unable to install the signature file for iCloud. Please make sure signature files are not locked. If you contact support, please quote error number 9."
 			exit 9
