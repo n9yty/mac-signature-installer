@@ -209,15 +209,15 @@ if [ -z "${SIG_UID}" ]; then
 	fi
 fi
 
-`killall -d "Mail" &> /dev/null`
-let "MAIL_IS_RUNNING = ! $?"
-if [ ${MAIL_IS_RUNNING} -eq 1 ]; then
+/usr/bin/osascript -e 'tell application "Mail.app" to quit with saving'
+MAIL_IS_RUNNING=`ps -eaf | grep "Mail.app" | grep -v grep`
+if [ ! -z ${MAIL_IS_RUNNING} ]; then
 	echo -ne "\n\n${PURPLE}Please quit the Mail app now.${NC} I'll wait (you can still cancel with Ctrl + C)"
-	while [ ${MAIL_IS_RUNNING} -eq 1 ]; do
+	while [ ! -z ${MAIL_IS_RUNNING} ]; do
 		echo -n "."
 		sleep 1
-		`killall -d "Mail" &> /dev/null`
-		let "MAIL_IS_RUNNING = ! $?"
+		/usr/bin/osascript -e 'tell application "Mail.app" to quit with saving'
+		MAIL_IS_RUNNING=`ps -eaf | grep "Mail.app" | grep -v grep`
 	done
 fi
 
