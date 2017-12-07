@@ -164,6 +164,7 @@ while [ -z "${SIG_DATA}" ]; do
 	done
 	if [ -z "${SIG_DATA}" ]; then
 		# Signature does not exist, so create a new one ourselves
+		# Set the SIG_UID so we can test on it later
 		SIG_UID="$(uuidgen)"
 		SIG_DATA="Will be created later"
 #		if [ -z "${FIXED_SIGNATURE_NAME}" ]; then
@@ -177,6 +178,7 @@ while [ -z "${SIG_DATA}" ]; do
 	fi
 done
 
+# Signature already existed, so modify it
 if [ -z "${SIG_UID}" ]; then
 	# existing signature, set up variables
 	SIG_ID=$(grep "SignatureUniqueId = " <<< "${SIG_DATA}" | egrep -o "[0-9A-F-]{36}")
@@ -202,18 +204,18 @@ if [ -z "${SIG_UID}" ]; then
 		exit 7
 	fi
 
-	if [ ! -z "${FIXED_SIGNATURE_NAME}" ]; then
-		echo -e "\n\n${TAG_WARNING} If you continue now, the signature named \"${SIGNATURE_NAME}\" will be replaced with a new signature!"
-		echo -ne "${PURPLE}Press Enter to continue...${NC} "
-		read
-	fi
+#	if [ ! -z "${FIXED_SIGNATURE_NAME}" ]; then
+#		echo -e "\n\n${TAG_WARNING} If you continue now, the signature named \"${SIGNATURE_NAME}\" will be replaced with a new signature!"
+#		echo -ne "${PURPLE}Press Enter to continue...${NC} "
+#		read
+#	fi
 fi
 
 /usr/bin/osascript -e 'tell application "Mail.app" to quit with saving'
 MAIL_IS_RUNNING=`ps -eaf | grep "Mail.app" | grep -v grep`
-if [ ! -z ${MAIL_IS_RUNNING} ]; then
+if [ ! -z "${MAIL_IS_RUNNING}" ]; then
 	echo -ne "\n\n${PURPLE}Please quit the Mail app now.${NC} I'll wait (you can still cancel with Ctrl + C)"
-	while [ ! -z ${MAIL_IS_RUNNING} ]; do
+	while [ ! -z "${MAIL_IS_RUNNING}" ]; do
 		echo -n "."
 		sleep 1
 		/usr/bin/osascript -e 'tell application "Mail.app" to quit with saving'
@@ -221,7 +223,7 @@ if [ ! -z ${MAIL_IS_RUNNING} ]; then
 	done
 fi
 
-# Is this a new signature?
+# If this is a new signature, set it up
 if [ ! -z "${SIG_UID}" ]; then
 	SIG_ID=${SIG_UID}
 	SYSTEM_SIG_FILE="${MAIL_DIR}/${SIG_ID}.mailsignature"
@@ -272,6 +274,10 @@ if [ ! -z "${CLOUD_DIR}" ]; then
 	if [ -f "${CLOUD_SIG_FILE}" ]; then
                 chflags uchg "${CLOUD_SIG_FILE}"
 		cat > "${CLOUD_SIG_FILE}" <<< "${RAW_SIGNATURE}"
+		# If we added the signature to the system AllSignatures list, copy it here
+		if [ ! -z "${SIG_UID}" ]; then
+			cp "${ALL_SIG_FILE}" "${CLOUD_DIR}/AllSignatures.plist"
+		fi
                 chflags uchg "${CLOUD_SIG_FILE}"
 		if [ $? -ne 0 ]; then
 			echo -e "${TAG_ERROR} I was unable to install the signature file for iCloud. Please make sure signature files are not locked. If you contact support, please quote error number 9."
