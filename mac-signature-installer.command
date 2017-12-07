@@ -163,48 +163,67 @@ while [ -z "${SIG_DATA}" ]; do
 		INDEX=$((${INDEX} + 1))
 	done
 	if [ -z "${SIG_DATA}" ]; then
-		if [ -z "${FIXED_SIGNATURE_NAME}" ]; then
-			echo -e "${TAG_WARNING} Could not find a signature with the name \"${SIGNATURE_NAME}\". Please double-check the spelling and try again."
-		else
-			echo -e "${TAG_WARNING} Could not find a signature with the name \"${SIGNATURE_NAME}\"."
-			echo -e "Please open the Mail app, go to the app's preferences (Cmd + ,) and select the \"Signatures\" tab. Add a new signature by clicking the [+] button and name it \"${CYAN}${SIGNATURE_NAME}${NC}\". Don't change the signature itself, but make sure the checkbox \"Always match my default message font\" is NOT checked."
-			echo -ne "${PURPLE}When you're ready, press Enter to try again...${NC} "
-			read
-		fi
-	fi
+		# Signature does not exist, so create a new one ourselves
+		SIG_UID="$(uuidgen)"
+#		if [ -z "${FIXED_SIGNATURE_NAME}" ]; then
+#			echo -e "${TAG_WARNING} Could not find a signature with the name \"${SIGNATURE_NAME}\". Please double-check the spelling and try again."
+#		else
+#			echo -e "${TAG_WARNING} Could not find a signature with the name \"${SIGNATURE_NAME}\"."
+#			echo -e "Please open the Mail app, go to the app's preferences (Cmd + ,) and select the \"Signatures\" tab. Add a new signature by clicking the [+] button and name it \"${CYAN}${SIGNATURE_NAME}${NC}\". Don't change the signature itself, but make sure the checkbox \"Always match my default message font\" is NOT checked."
+#			echo -ne "${PURPLE}When you're ready, press Enter to try again...${NC} "
+#			read
+#		fi
+#	fi
 done
 
+		cat <<EOF > "$mailsignatureFile"
+Content-Transfer-Encoding: quoted-printable
+Content-Type: text/html;
+	charset=utf-8
+Message-Id: <$(uuidgen)>
+Mime-Version: 1.0 (Mac OS X Mail 11.1 \(3445.4.7\))
 
-SIG_ID=$(grep "SignatureUniqueId = " <<< "${SIG_DATA}" | egrep -o "[0-9A-F-]{36}")
-SYSTEM_SIG_FILE="${MAIL_DIR}/${SIG_ID}.mailsignature"
-`grep -q "SignatureIsRich = true" <<< "${SIG_DATA}" &> /dev/null`
-let "IS_RICH = ! $?"
+EOF
+        # Create the new entry for the signature
+	/usr/libexec/PlistBuddy -c "Add :0 dict" "${ALL_SIG_FILE}"
+	/usr/libexec/PlistBuddy -c "Add :0:SignatureIsRich bool true" "${ALL_SIG_FILE}"
+	/usr/libexec/PlistBuddy -c "Add :0:SignatureName string '$1'" "${ALL_SIG_FILE}"
+	/usr/libexec/PlistBuddy -c "Add :0:SignatureUniqueId string '$SIG_UID'" "${ALL_SIG_FILE}"
 
-if [ -z "${SIG_ID}" ]; then
-	# Unable to extract SignatureUniqueId
-	echo -e "${TAG_ERROR} Please contact support and quote error number 5. ${UNLUCKY_MESSAGE}"
-	exit 5
+
+if [ "" -eq "${SIG_UID}" ]; then
+	# existing signature, set up variables
+	SIG_ID=$(grep "SignatureUniqueId = " <<< "${SIG_DATA}" | egrep -o "[0-9A-F-]{36}")
+	SYSTEM_SIG_FILE="${MAIL_DIR}/${SIG_ID}.mailsignature"
+	`grep -q "SignatureIsRich = true" <<< "${SIG_DATA}" &> /dev/null`
+	let "IS_RICH = ! $?"
+
+	if [ -z "${SIG_ID}" ]; then
+		# Unable to extract SignatureUniqueId
+		echo -e "${TAG_ERROR} Please contact support and quote error number 5. ${UNLUCKY_MESSAGE}"
+		exit 5
+	fi
+
+	if [ ! -f "${SYSTEM_SIG_FILE}" ]; then
+		# Signature file not found
+		echo -e "${TAG_ERROR} If your signature \"${SIGNATURE_NAME}\" is empty, please enter a few random letters and try again. If that doesn't help, please contact support and quote error number 6. ${UNLUCKY_MESSAGE}"
+		exit 6
+	fi
+
+	if [ ${IS_RICH} -ne 1 ]; then
+		# Signature is not flagged as "rich"
+		echo -e "${TAG_ERROR} Please UNCHECK the checkbox \"Always match my default message font\" for the signature \"${SIGNATURE_NAME}\", close the preferences window of Mail and then try again."
+		exit 7
+	fi
+
+	if [ ! -z "${FIXED_SIGNATURE_NAME}" ]; then
+		echo -e "\n\n${TAG_WARNING} If you continue now, the signature named \"${SIGNATURE_NAME}\" will be replaced with a new signature!"
+		echo -ne "${PURPLE}Press Enter to continue...${NC} "
+		read
+	fi
 fi
 
-if [ ! -f "${SYSTEM_SIG_FILE}" ]; then
-	# Signature file not found
-	echo -e "${TAG_ERROR} If your signature \"${SIGNATURE_NAME}\" is empty, please enter a few random letters and try again. If that doesn't help, please contact support and quote error number 6. ${UNLUCKY_MESSAGE}"
-	exit 6
-fi
-
-if [ ${IS_RICH} -ne 1 ]; then
-	# Signature is not flagged as "rich"
-	echo -e "${TAG_ERROR} Please UNCHECK the checkbox \"Always match my default message font\" for the signature \"${SIGNATURE_NAME}\", close the preferences window of Mail and then try again."
-	exit 7
-fi
-
-if [ ! -z "${FIXED_SIGNATURE_NAME}" ]; then
-	echo -e "\n\n${TAG_WARNING} If you continue now, the signature named \"${SIGNATURE_NAME}\" will be replaced with a new signature!"
-	echo -ne "${PURPLE}Press Enter to continue...${NC} "
-	read
-fi
-
-`killall -d "Mail" &> /dev/null`
+killall -d "Mail" &> /dev/null`
 let "MAIL_IS_RUNNING = ! $?"
 if [ ${MAIL_IS_RUNNING} -eq 1 ]; then
 	echo -ne "\n\n${PURPLE}Please quit the Mail app now.${NC} I'll wait (you can still cancel with Ctrl + C)"
@@ -214,6 +233,26 @@ if [ ${MAIL_IS_RUNNING} -eq 1 ]; then
 		`killall -d "Mail" &> /dev/null`
 		let "MAIL_IS_RUNNING = ! $?"
 	done
+fi
+
+# Is this a new signature?
+if [ "" -ne "${SIG_UID}" ]; then
+	SIG_ID=${SIG_UID}
+	SYSTEM_SIG_FILE="${MAIL_DIR}/${SIG_ID}.mailsignature"
+
+	cat <<EOF > "${SYSTEM_SIG_FILE}"
+Content-Transfer-Encoding: quoted-printable
+Content-Type: text/html;
+	charset=utf-8
+Message-Id: <$(uuidgen)>
+Mime-Version: 1.0 (Mac OS X Mail 11.1 \(3445.4.7\))
+
+EOF
+        # Create the new entry for the signature
+	/usr/libexec/PlistBuddy -c "Add :0 dict" "${ALL_SIG_FILE}"
+	/usr/libexec/PlistBuddy -c "Add :0:SignatureIsRich bool true" "${ALL_SIG_FILE}"
+	/usr/libexec/PlistBuddy -c "Add :0:SignatureName string '$1'" "${ALL_SIG_FILE}"
+	/usr/libexec/PlistBuddy -c "Add :0:SignatureUniqueId string '$SIG_UID'" "${ALL_SIG_FILE}"
 fi
 
 chflags nouchg "${SYSTEM_SIG_FILE}"
