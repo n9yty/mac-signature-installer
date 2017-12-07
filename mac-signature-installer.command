@@ -165,6 +165,7 @@ while [ -z "${SIG_DATA}" ]; do
 	if [ -z "${SIG_DATA}" ]; then
 		# Signature does not exist, so create a new one ourselves
 		SIG_UID="$(uuidgen)"
+		SIG_DATA="Will be created later"
 #		if [ -z "${FIXED_SIGNATURE_NAME}" ]; then
 #			echo -e "${TAG_WARNING} Could not find a signature with the name \"${SIGNATURE_NAME}\". Please double-check the spelling and try again."
 #		else
@@ -173,25 +174,10 @@ while [ -z "${SIG_DATA}" ]; do
 #			echo -ne "${PURPLE}When you're ready, press Enter to try again...${NC} "
 #			read
 #		fi
-#	fi
+	fi
 done
 
-		cat <<EOF > "$mailsignatureFile"
-Content-Transfer-Encoding: quoted-printable
-Content-Type: text/html;
-	charset=utf-8
-Message-Id: <$(uuidgen)>
-Mime-Version: 1.0 (Mac OS X Mail 11.1 \(3445.4.7\))
-
-EOF
-        # Create the new entry for the signature
-	/usr/libexec/PlistBuddy -c "Add :0 dict" "${ALL_SIG_FILE}"
-	/usr/libexec/PlistBuddy -c "Add :0:SignatureIsRich bool true" "${ALL_SIG_FILE}"
-	/usr/libexec/PlistBuddy -c "Add :0:SignatureName string '$1'" "${ALL_SIG_FILE}"
-	/usr/libexec/PlistBuddy -c "Add :0:SignatureUniqueId string '$SIG_UID'" "${ALL_SIG_FILE}"
-
-
-if [ "" -eq "${SIG_UID}" ]; then
+if [ -z "${SIG_UID}" ]; then
 	# existing signature, set up variables
 	SIG_ID=$(grep "SignatureUniqueId = " <<< "${SIG_DATA}" | egrep -o "[0-9A-F-]{36}")
 	SYSTEM_SIG_FILE="${MAIL_DIR}/${SIG_ID}.mailsignature"
@@ -223,7 +209,7 @@ if [ "" -eq "${SIG_UID}" ]; then
 	fi
 fi
 
-killall -d "Mail" &> /dev/null`
+`killall -d "Mail" &> /dev/null`
 let "MAIL_IS_RUNNING = ! $?"
 if [ ${MAIL_IS_RUNNING} -eq 1 ]; then
 	echo -ne "\n\n${PURPLE}Please quit the Mail app now.${NC} I'll wait (you can still cancel with Ctrl + C)"
@@ -236,7 +222,7 @@ if [ ${MAIL_IS_RUNNING} -eq 1 ]; then
 fi
 
 # Is this a new signature?
-if [ "" -ne "${SIG_UID}" ]; then
+if [ ! -z "${SIG_UID}" ]; then
 	SIG_ID=${SIG_UID}
 	SYSTEM_SIG_FILE="${MAIL_DIR}/${SIG_ID}.mailsignature"
 
@@ -251,7 +237,7 @@ EOF
         # Create the new entry for the signature
 	/usr/libexec/PlistBuddy -c "Add :0 dict" "${ALL_SIG_FILE}"
 	/usr/libexec/PlistBuddy -c "Add :0:SignatureIsRich bool true" "${ALL_SIG_FILE}"
-	/usr/libexec/PlistBuddy -c "Add :0:SignatureName string '$1'" "${ALL_SIG_FILE}"
+	/usr/libexec/PlistBuddy -c "Add :0:SignatureName string '${SIGNATURE_NAME}'" "${ALL_SIG_FILE}"
 	/usr/libexec/PlistBuddy -c "Add :0:SignatureUniqueId string '$SIG_UID'" "${ALL_SIG_FILE}"
 fi
 
